@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>全球科学家分布（DEMO）</title>
+<!-- QRCode 样式 -->
+<link href="./css/share_section.css" rel="stylesheet" type="text/css">
+<!-- 页面样式 -->
+<link rel="stylesheet" href="css/common.css"/>
+<!-- baidu echart js-->
+<script src="./js/echarts.min.js"></script>
+<!-- echart 所需世界地图 -->
+<script src="./map/world.js"></script>
+<!-- jquery js -->
+<script src="./js/jquery.min.js"></script>
+<!-- 搜索关键字推荐 -->
+<script src="js/jquery.autocomplete.min.js"></script>
+<!-- QRCode js -->
+<script src="js/qrcode.min.js"></script>
+<!-- 自定义的一些函数 -->
+<script src="js/custom.js"></script>
+</head>
+
+<body>
+	<!-- QRCode 区域 -->
+	<div class="izl-rmenu">
+	    <a class="sharesite" target="_blank"><div class="site" style="display:none;"><div id="siteQR" style="width:100px; height:100px;"></div></div></a>    
+	   	<a class="sharepage" target="_blank"><div class="page" style="display:none;"><div id="pageQR" style="width:100px; height:100px;"></div></div></a>    	    
+	</div>
+	<!-- 搜索框以及搜索类别等组件 -->
+	<div class="content tc">
+		<form>
+			<input placeholder="键入搜索关键字"  id="showKeyword" class="searchIpt f14" autocomplete="off" onkeyup="suggest()"></input>
+			<input type="hidden" name="kw" id="keyword" ></input>
+			<select name="ctg" id="category" class="selectOpt f13">
+				<option>姓名</option>
+				<option>领域</option>
+				<option>单位</option>
+				<option>国家</option>
+				<option>序号</option>				
+			</select>
+			<select name="region" id="region" onchange="regionChange()" class="selectOpt f13">
+				<option>全球</option>
+				<option>北美</option>
+				<option>欧洲</option>
+				<option>亚太</option>				
+			</select>
+			<input id="button" type="submit" onclick="return toSubmit();" class="btn cp"></input>
+		</form>
+	</div>
+	<!-- 为ECharts准备一个具备大小（宽高）的DOM -->
+	<div id="main"></div>
+	
+	<!-- 	生成二维码 -->
+	<script type="text/javascript">
+		var siteQR = new QRCode(document.getElementById("siteQR"), {
+			width : 100,
+			height : 100
+		});
+		var pageQR = new QRCode(document.getElementById("pageQR"), {
+			width : 100,
+			height : 100,
+			correctLevel : QRCode.CorrectLevel.L
+		});
+		function makeCode () {		
+			siteQR.makeCode(location.href.split("?")[0]);
+			pageQR.makeCode(location.href + "");
+		}
+	</script>
+	<!-- 渲染数据点以及数据信息到Echart -->
+	<script type="text/javascript">		
+		var latlong;
+		var externalData;
+		var mapData;
+		var numFound;
+		var myChart;
+		var max = -Infinity;
+		var min = Infinity;
+		var viewCenter = "";
+		var zoomTime = 1.1;
+	
+		// 基于准备好的dom，初始化echarts实例
+		var worldMapContainer = document.getElementById('main');
+		//用于使chart自适应高度和宽度,通过窗体高宽计算容器高宽
+		var resizeWorldMapContainer = function() {
+			worldMapContainer.style.width = window.innerWidth + 'px';
+			worldMapContainer.style.height = window.innerHeight - 50
+					- (window.innerHeight * 0.02) + 'px';
+		};
+		//解析并拼凑提交查询数据
+		var getParams = function() {
+			//对关键字进行两次解码
+            keyword = unescape(unescape($.getUrlParam('kw')));
+            category = decodeURIComponent(escape($.getUrlParam('ctg')));
+            region = decodeURIComponent(escape($.getUrlParam('region')));
+           
+			if (keyword == "null" || keyword == "") {
+				keyword = "*";
+			} else {
+				$("#showKeyword").val(keyword);				
+			}
+			
+			if(category == "null" || category == "") {
+				category = "*";
+			} else {
+				$("#category").val(category);
+			}
+			
+			if(region == "null" || region == "") {
+				region = "*";
+			} else {
+				$("#region").val(region);
+			}			
+		};
+		
+		var configureView = function() {
+			if(region == "亚太") {
+				zoomTime = 2;
+				viewCenter = [150,5];				
+			}
+			if(region == "北美") {
+				zoomTime = 3;
+				viewCenter = [-96,40];
+			}
+			if(region == "欧洲") {
+				zoomTime =3.5;
+				viewCenter = [11,47];
+			}
+			if(region == "全球") {
+				zoomTime = 1;
+				viewCenter = [0,0];
+			}
+		}
+		
+		//切换区域时更新url中参数
+		function changeUrl(region){
+			oldUrl = window.location.href;
+			index = oldUrl.lastIndexOf("=");
+			if (index != -1) {
+				newUrl = oldUrl.substring(0, index + 1) + region;				
+				history.pushState(null,null,newUrl);
+			}
+		}
+		//切换视图区域
+		function regionChange() {
+			resizeWorldMapContainer();
+			region = $("#region").val();
+			changeUrl(region);
+			configureView();
+			setMapOption();
+			makeCode();
+		}
+		//设置容器高宽
+		resizeWorldMapContainer();
+		// 基于准备好的dom，初始化echarts实例
+		myChart = echarts.init(worldMapContainer);		
+		// 指定图表的配置项和数据
+		myChart.showLoading();
+		getParams();
+		configureView();
+		try {
+			if (category == "姓名") {
+				if(keyword != "" && keyword !="*") {
+					keyword = "\"" + EscapeAll(keyword) + "\"";
+				} else {
+					keyword = "*"
+				}
+			}
+			if (category == "单位") {
+				if(keyword != "" && keyword !="*") {
+						keyword = "\""+ EscapeAll(keyword)+"\"" ;
+				} else {
+					keyword = "*"
+				}
+			}
+			if (category == "领域") {
+				if(keyword != "" && keyword !="*") {
+					keyword = "\"" + EscapeAll(keyword) + "\"";
+				} else  {
+					keyword = "*";
+				}
+			}			
+			if (keyword == "*") {
+				oldUrl = window.location.href;
+				index = oldUrl.lastIndexOf("?");			
+				if (index != -1) {
+				newUrl = oldUrl.substring(0, index);
+				history.pushState(null,null,newUrl);
+				$("#keyword").val("");				
+				}
+			}
+			
+			//获取记录总条数
+			$.ajax({
+				type : "POST",
+				url : "./webapp/ScientistInfo.v2/getSummary",
+				data : keyword=='*' ? {query:'*:*'} : {query: category + ":" + keyword},
+				contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+				async : false,
+				success : function(data) {
+					if (data !== '') {
+						numFound = data.numFound;
+					}
+					
+				},
+				error:function(XMLHttpRequest, textStatus, errorThrown){
+					myChart.showLoading();
+				}
+			});
+			//获取GEO信息
+			$.ajax({
+				type : "POST",
+				url : "./webapp/ScientistInfo.v2/getScientistInfo",
+				data : {query:category + ":" + keyword,start:0,rows:numFound} ,
+				async : false,
+				contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+				success : function(data) {
+					if (data !== '') {
+						mapData = eval("(" + data.echartValue + ")");
+						latlong = eval("(" + data.geoPosition + ")");
+					}
+					myChart.hideLoading();
+				},
+				error:function(XMLHttpRequest, textStatus, errorThrown){
+					myChart.showLoading();
+				}
+			});
+		
+			mapData.forEach(function(itemOpt) {
+				if (itemOpt.value > max) {
+					max = itemOpt.value;
+				}
+				if (itemOpt.value < min) {
+					min = itemOpt.value;
+				}
+			});
+		
+			var setMapOption = function() {
+				option = {
+						backgroundColor : '#404a59',
+						title : {
+							text : '全球科学家数据汇总',
+							subtext : '（Demo）',
+							left : 'center',
+							top : 'top',
+							textStyle : {
+								color : '#fff'
+							}
+						},
+						tooltip : {
+							trigger : 'item',
+							triggerOn : 'click', //点击触发显示各点详细信息
+							position : [ window.innerWidth / 10, 30 ],							
+							formatter : function(params) {
+								var tipContent = "";
+								var code = (params.value + "").split(",")[2];//单位代码
+								var names = params.name;//单位名称
+								names = "\"" + EscapeAll(names) + "\"";
+								//获取该点信息总条数
+								$.ajax({
+									type : "POST",
+									url : "./webapp/ScientistInfo.v2/getSummary",
+									data : {query:category + ":" + keyword +" AND 单位:" + names},
+									async : false,
+									success : function(data) {
+										if (data !== '') {
+											extNumFound = data.numFound;
+										}
+									},
+									error:function(XMLHttpRequest, textStatus, errorThrown){
+										myChart.showLoading();
+									}
+								});
+								//获取该点所有详细信息							
+								$.ajax({
+									type : "POST",
+									url : "./webapp/ScientistInfo.v2/getScientistList",
+									data : {query:category + ":" + keyword +" AND 单位:" + names,start:0,rows:extNumFound}, 
+									async : false,
+									success : function(data) {
+										//对详细信息制表
+										tipContent += "<div style='margin:0 auto; text-align:center;'>" + params.name +"</div>";
+										tipContent +="<table class='gridtable'>";
+										tipContent += "<tr>";
+										//表头
+										tipContent += "<th>";
+										tipContent +="序号";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="姓名";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="国籍";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="职称";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="领域";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="联系方式";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="发文数";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="引用数";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="H指数";
+										tipContent += "</th>";
+											
+										tipContent += "<th>";
+										tipContent +="个人主页";
+										tipContent += "</th>";
+											
+										tipContent += "</tr>";
+										//每条信息制表
+										for(i=0; i< data.numFound; i++) {
+											tipContent += "<tr>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].order;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].name;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].country;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].rank;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].domain;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += "<a href='mailto:" + data.scientistList[i].contact + "'>" + data.scientistList[i].contact + "</a>" ;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].docNum;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].quotedNum;
+											tipContent += "</td>";
+											
+											tipContent += "<td>";
+											tipContent += data.scientistList[i].indexH;
+											tipContent += "</td>";
+											
+											tipContent += "<td style='text-align:left'>";
+											if (data.scientistList[i].personalPage.length < 80) {
+												personalPage = data.scientistList[i].personalPage;
+											} else {
+												personalPage = data.scientistList[i].personalPage.substring(0,80) + "...";
+											}
+											tipContent += "<a target='_blank' href='" + data.scientistList[i].personalPage + "'>" + personalPage+"</a>";
+											tipContent += "</td>";
+											
+											tipContent +="</tr>";
+										}
+										
+									}
+								});
+								
+								return tipContent;
+							}
+						},
+						toolbox : {
+							show: true,
+					        orient: 'vertical',
+					        //left: 'right',
+					        top: 'center',
+							itemSize: 25,
+							itemGap:20,
+							right: 15,
+							feature: {
+						            dataView: {readOnly: true},
+						            restore: {},
+						            saveAsImage: {}
+						        }
+						},
+						visualMap : {
+							type:'continuous',
+							show : true,
+							min : 0,
+							max : max,
+							realtime : false,
+							text: ['高(High)','低(Low)'],
+							left: 'left',
+					        top: 'bottom',
+							realtime: false,
+							calculable : true,
+							inRange : {
+								symbolSize : [ 4, 50 ],
+								color : [ 'white', 'green','lightblue','yellow', 'orangered','purple'],
+							}, 
+							calculable: true
+						},						
+						geo : {
+							name : '全球科学家分布（DEMO）',
+							type : 'map',
+							map : 'world',
+							roam : true,
+							zoom: zoomTime,//放大倍率
+							center: viewCenter,//视角中心位置
+							label : {
+								emphasis : {
+									show : false
+								}
+							},
+							itemStyle : {
+								normal : {
+									areaColor : '#323c48',
+									borderColor : '#111',
+								},
+								emphasis : {
+									areaColor : '#2a333d'
+								}
+							}
+						},
+						series : [ {
+							name : '发文数',
+							type : 'scatter',
+							coordinateSystem : 'geo',
+							data : mapData.map(function(itemOpt) {
+								return {
+									name : itemOpt.name,
+									value : [ latlong[itemOpt.code].longitude,
+											latlong[itemOpt.code].latitude, itemOpt.code,
+											itemOpt.value ],
+									label : {
+										emphasis : {
+											position : 'right',
+											formatter : itemOpt.name + ":" + itemOpt.value + "篇",
+											show : true
+										},
+										normal : {
+											position : 'right',
+										}
+									},
+									itemStyle : {
+										normal : {
+											color : itemOpt.color,
+										}
+									}
+								};
+							})
+						} ]
+					};
+					// 使用刚指定的配置项和数据显示图表。
+					myChart.setOption(option);
+			}
+		} catch (err) {
+			alert ("没有查询到相关记录，请核对后重试！");
+			console.error(err.stack);
+		}
+		setMapOption();
+		makeCode();
+		//用于使chart自适应高度和宽度
+		window.onresize = function() {
+			//重置容器高宽
+			resizeWorldMapContainer();
+			myChart.resize();
+		};
+	</script>
+</body>
+</html>

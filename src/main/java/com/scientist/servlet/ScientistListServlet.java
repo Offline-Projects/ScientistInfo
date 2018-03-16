@@ -7,6 +7,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -32,7 +34,7 @@ import net.sf.json.JSONObject;
 public class ScientistListServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 7590883676848193154L;
-
+	private static final Logger logger = Logger.getLogger(ScientistListServlet.class.getName());
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		// set response configuration
@@ -115,10 +117,12 @@ public class ScientistListServlet extends HttpServlet {
 		} catch (JSONException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		} catch (SolrServerException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		}
 		long end = System.currentTimeMillis();

@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -12,7 +14,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.log4j.Logger;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -30,7 +31,7 @@ import net.sf.json.JSONObject;
 public class SummaryServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 3552448024509013844L;
-	Logger logger = Logger.getLogger(SummaryServlet.class);
+	Logger logger = Logger.getLogger(SummaryServlet.class.getName());
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		// set response configuration
@@ -89,10 +90,12 @@ public class SummaryServlet extends HttpServlet {
 		} catch (JSONException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		} catch (SolrServerException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		}
 		long end = System.currentTimeMillis();

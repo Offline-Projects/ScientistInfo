@@ -8,6 +8,8 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -37,6 +39,7 @@ public class ScientistServlet extends HttpServlet {
 	private static final String PRE_BRACKET = "{";
 	private static final String POST_BRACKET = "}";
 
+	private static final Logger logger = Logger.getLogger(ScientistServlet.class.getName());
 	private static final long serialVersionUID = -2579884687198191080L;
 
 	@Override
@@ -163,10 +166,12 @@ public class ScientistServlet extends HttpServlet {
 		} catch (JSONException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		} catch (SolrServerException e) {
 			response.setStatusCode(1);
 			response.setStatusMsg(e.getMessage());
+			logger.log(Level.SEVERE,"详细错误信息：" + e.getMessage());
 			pw.write(JSONObject.fromObject(response).toString());
 		}
 
